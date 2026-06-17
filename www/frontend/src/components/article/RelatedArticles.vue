@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="related-articles">
     <div class="section-header">
       <h3 class="section-title">📚 相关推荐</h3>
@@ -127,15 +127,15 @@ const convertToRelatedArticle = (article: Article): RelatedArticle => {
   return {
     id: article.articleId,
     title: article.title,
-    excerpt: article.content.substring(0, 150) + '...',
+    excerpt: (article.content || '').substring(0, 150) + '...',
     author: article.author,
     authorAvatar: article.authorAvatar || '', // 添加头像字段
-    category: article.tags.split(',')[0] || '未分类',
+    category: (article.tags || '').split(',')[0] || '未分类',
     rating: 4 + Math.random(), // 模拟评分
     publishDate: article.publishDate, // 使用正确的字段名
     views: article.views,
     likes: article.likes,
-    readTime: Math.ceil(article.content.length / 500) // 估算阅读时间
+    readTime: Math.ceil((article.content || '').length / 500) // 估算阅读时间
   }
 }
 

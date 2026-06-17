@@ -11,6 +11,7 @@ class CommentOut(BaseModel):
     article_id: int
     author: str
     author_id: Optional[int] = None
+    author_avatar: Optional[str] = None
     content: str
     parent_id: Optional[int] = None
     likes: int = 0

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 用户认证状态管理组合函数
  * 
  * 这是一个Vue3组合式函数，用于管理用户的认证状态和权限信息。
@@ -307,7 +307,7 @@ const refreshUserInfo = async () => {
         fullName: result.data.fullName,
         userGroup: result.data.userGroup,
         active: result.data.active,
-        avatarUrl: result.data.avatarUrl,
+        avatarUrl: result.data.avatarUrl ?? result.data.avatar_url ?? '',
         createdAt: result.data.createdAt,
         updatedAt: result.data.updatedAt
       }

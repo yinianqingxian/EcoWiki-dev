@@ -1,4 +1,4 @@
-<!-- AvatarUpload.vue -->
+﻿<!-- AvatarUpload.vue -->
 <template>
   <div class="avatar-upload-container">
     <!-- 头像显示区域 -->
@@ -181,7 +181,7 @@ const uploadAvatar = async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
     
-    const response = await api.post('/avatar/upload', formData, {
+    const response = await api.post('/api/upload/avatar', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },

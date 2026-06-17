@@ -27,6 +27,12 @@ class Comment(Base):
 
     article     = relationship("Article",  foreign_keys=[article_id])
     author_user = relationship("User",     foreign_keys=[author_id])
+    @property
+    def author_avatar(self):
+        if self.author_user:
+            return self.author_user.avatar_url
+        return None
+
     replies     = relationship("Comment",  foreign_keys=[parent_id], back_populates="parent")
     parent      = relationship("Comment",  foreign_keys=[parent_id], back_populates="replies",
                                remote_side=[comment_id])

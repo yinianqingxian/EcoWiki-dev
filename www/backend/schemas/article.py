@@ -27,6 +27,7 @@ class ArticleOut(BaseModel):
     update_time: Optional[datetime] = None
     status: Optional[str] = None
     author_id: Optional[int] = None
+    author_avatar: Optional[str] = None
     tags: List[TagOut] = []
 
     model_config = {"from_attributes": True}
@@ -44,6 +45,7 @@ class ArticleListOut(BaseModel):
     comments: int = 0
     update_time: Optional[datetime] = None
     status: Optional[str] = None
+    author_avatar: Optional[str] = None
     tags: List[TagOut] = []
 
     model_config = {"from_attributes": True}

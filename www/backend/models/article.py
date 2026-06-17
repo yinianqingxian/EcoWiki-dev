@@ -38,6 +38,11 @@ class Article(Base):
     status       = Column(String(20), default="published")
     # 关联作者 user_id（可选，用于用户文章列表）
     author_id    = Column("author_id", BigInteger, ForeignKey("user.user_id"))
+    @property
+    def author_avatar(self):
+        if self.author_user:
+            return self.author_user.avatar_url
+        return None
 
     tags = relationship("Tag", secondary=article_tags_table, lazy="joined")
     author_user = relationship("User", foreign_keys=[author_id])

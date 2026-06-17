@@ -667,9 +667,13 @@ def my_drafts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """获取当前用户的所有草稿（不含已通过的）"""
     drafts = (
         db.query(ArticleDraft)
-        .filter(ArticleDraft.author_id == current_user.user_id)
+        .filter(
+            ArticleDraft.author_id == current_user.user_id,
+            ArticleDraft.status != "approved",
+        )
         .order_by(ArticleDraft.created_at.desc())
         .all()
     )
@@ -813,10 +817,12 @@ def all_drafts(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """获取所有草稿（管理员），可按状态过滤"""
+    """获取所有草稿（管理员），可按状态过滤。默认不含已通过的草稿。"""
     q = db.query(ArticleDraft)
     if status:
         q = q.filter(ArticleDraft.status == status)
+    else:
+        q = q.filter(ArticleDraft.status != "approved")
     drafts = q.order_by(ArticleDraft.created_at.desc()).all()
     return ApiResponse.ok(data=[DraftOut.model_validate(d) for d in drafts])
 
