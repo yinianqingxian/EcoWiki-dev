@@ -58,7 +58,7 @@
         <div class="comment-avatar">
           <UserAvatar 
             :username="comment.author"
-            :avatar-url="comment.userAvatar"
+            :avatar-url="comment.authorAvatar"
             size="md"
             shape="circle"
           />
@@ -94,7 +94,7 @@
 
           <!-- 回复表单 -->
           <div v-if="replyingTo === comment.id && isLoggedIn" class="reply-form">
-            <div class="user-avatar small">👤</div>
+            <UserAvatar :username="user?.username" :avatar-url="currentUserAvatar" size="sm" shape="circle" />
             <div class="form-content">
               <textarea
                 v-model="replyContent"
@@ -122,7 +122,7 @@
               <div class="comment-avatar small">
                 <UserAvatar 
                   :username="reply.author"
-                  :avatar-url="reply.userAvatar"
+                  :avatar-url="reply.authorAvatar"
                   size="sm"
                   shape="circle"
                 />
@@ -216,7 +216,7 @@ const loadComments = async () => {
     // 为评论数据添加头像信息（临时测试用）
     comments.value = response.content.map(comment => ({
       ...comment,
-      userAvatar: comment.userAvatar || '' // 如果没有头像URL，使用空字符串，这样会显示默认头像
+      userAvatar: comment.authorAvatar || '' // 如果没有头像URL，使用空字符串，这样会显示默认头像
     }))
     hasMore.value = !response.last
   } catch (error) {
@@ -277,6 +277,7 @@ const submitComment = async () => {
       content: newComment.value
     }
     const comment = await commentApi.createComment(request)
+    comment.authorAvatar = user.value?.avatarUrl || ''
     comments.value.unshift(comment)
     newComment.value = ''
     toast.show('评论发表成功', '成功', { type: 'success' })
@@ -305,6 +306,7 @@ const submitReply = async (comment: Comment) => {
   
   try {
     const reply = await commentApi.createReply(comment.id, replyContent.value)
+    reply.authorAvatar = user.value?.avatarUrl || ''
     if (!comment.replies) {
       comment.replies = []
     }

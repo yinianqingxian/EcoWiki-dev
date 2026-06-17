@@ -40,6 +40,7 @@ def _build_comment_out(comment: Comment, current_user: Optional[User], db: Sessi
         "article_id":         comment.article_id,
         "author":             comment.author,
         "author_id":          comment.author_id,
+        "author_avatar":      comment.author_avatar,
         "content":            comment.content,
         "parent_id":          comment.parent_id,
         "likes":              comment.likes,

@@ -3,6 +3,9 @@
     <!-- ── 左侧：文件夹导航 ────────────────────────────────────────────── -->
     <aside class="sidebar">
       <div class="sidebar-header">
+        <button class="back-btn" @click="goBack" title="返回">
+          <svg viewBox="0 0 24 24" class="icon"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/></svg>
+        </button>
         <span class="sidebar-title">消息中心</span>
         <button class="compose-btn" @click="openCompose" title="撰写消息">
           <svg viewBox="0 0 24 24" class="icon"><path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87L20.71,7.04M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/></svg>
@@ -81,8 +84,22 @@
         </div>
         <div class="compose-form">
           <label class="form-row">
-            <span class="form-label">收件人 ID</span>
-            <input v-model.number="draft.recipientUserId" type="number" placeholder="用户 ID" class="form-input"/>
+          <span class="form-label">收件人</span>
+          <div v-if="draft.recipientUserId > 0" class="selected-recipient">
+            收件人：<strong>{{ selectedRecipientName }}</strong>
+            <button @click="clearRecipient" class="remove-recipient-btn" type="button">✕</button>
+          </div>
+          <template v-else>
+            <input v-model="userSearchQuery" placeholder="搜索用户名或邮箱…" class="form-input" />
+            <div v-if="loadingUsers" class="user-list-loading">加载中…</div>
+            <div v-else-if="userList.length > 0" class="user-list">
+              <div v-for="u in userList" :key="u.userId" @click="selectUser(u)" class="user-list-item">
+                <span class="user-list-name">{{ u.username }}</span>
+                <span class="user-list-email">{{ u.email }}</span>
+              </div>
+            </div>
+            <div v-else class="user-list-empty">无用户</div>
+          </template>
           </label>
           <label class="form-row">
             <span class="form-label">主题</span>
@@ -155,6 +172,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { messageApi, type Message, type SendMessageRequest } from '../api/message'
+import { useRouter } from 'vue-router'
 
 // ── 文件夹定义 ───────────────────────────────────────────────────────────────
 const folders = [
@@ -193,6 +211,15 @@ const sendError    = ref('')
 const replyContent = ref('')
 
 const draft = ref<SendMessageRequest>({ recipientUserId: 0, subject: '', content: '' })
+const userSearchQuery = ref('')
+const allUsers = ref<Array<{userId: number; username: string; email: string}>>([])
+const loadingUsers = ref(false)
+
+const selectedRecipientName = computed(() => {
+  if (!draft.value.recipientUserId) return ''
+  const found = allUsers.value.find(u => u.userId === draft.value.recipientUserId)
+  return found ? `${found.username} (${found.email})` : `用户 #${draft.value.recipientUserId}`
+})
 
 // ── 计算 ────────────────────────────────────────────────────────────────────
 const currentFolderLabel = computed(
@@ -260,6 +287,42 @@ async function removeMsg(id: number) {
   if (selectedMsg.value?.messageId === id) selectedMsg.value = null
 }
 
+
+// ── 用户搜索 ───────────────────────────────────────────
+// ── 用户搜索 ───────────────────────────────────────────
+async function loadUsers() {
+  loadingUsers.value = true
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch('http://localhost:8080/api/users/search?limit=50', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const data = await res.json()
+    if (data.code === 200 && Array.isArray(data.data)) {
+      allUsers.value = data.data
+    }
+  } catch (e) { console.error(e) }
+  finally { loadingUsers.value = false }
+}
+
+const userList = computed(() => {
+  const q = userSearchQuery.value.toLowerCase().trim()
+  if (!q) return allUsers.value
+  return allUsers.value.filter(u =>
+    u.username.toLowerCase().includes(q) ||
+    (u.email && u.email.toLowerCase().includes(q))
+  )
+})
+
+function selectUser(u: {userId: number; username: string; email: string}) {
+  draft.value.recipientUserId = u.userId
+  userSearchQuery.value = u.username
+}
+
+function clearRecipient() {
+  draft.value.recipientUserId = 0
+  userSearchQuery.value = ''
+}
 function openCompose() {
   composing.value = true
   replying.value  = false
@@ -275,7 +338,7 @@ function startReply() {
 
 async function sendMessage() {
   if (!draft.value.recipientUserId || !draft.value.content.trim()) {
-    sendError.value = '收件人 ID 和内容不能为空'
+    sendError.value = '收件人和内容不能为空'
     return
   }
   sending.value  = true
@@ -346,6 +409,24 @@ onMounted(() => {
 onUnmounted(() => clearInterval(pollTimer))
 
 watch([activeFolder, page], loadMessages)
+const router = useRouter()
+
+// ── 撰写消息时加载用户列表 ──────────────────────────────
+watch(composing, (val) => {
+  if (val) {
+    userSearchQuery.value = ''
+    if (allUsers.value.length === 0) loadUsers()
+  }
+})
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+
 </script>
 
 <style scoped>
@@ -382,6 +463,55 @@ watch([activeFolder, page], loadMessages)
   color: #111;
 }
 
+/* 返回按钮 */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.back-btn:hover { background: #f3f4f6; color: #374151; }
+.back-btn .icon { width: 20px; height: 20px; fill: currentColor; }
+
+/* 用户搜索下拉 */
+/* 用户列表 */
+.user-list {
+  max-height: 200px; overflow-y: auto;
+  border: 1px solid #e2e8f0; border-radius: 6px;
+  margin-top: 6px; background: #fff;
+}
+.user-list-item {
+  display: flex; justify-content: space-between;
+  padding: 8px 12px; cursor: pointer;
+  transition: background 0.15s;
+}
+.user-list-item:hover { background: #f3f4f6; }
+.user-list-item + .user-list-item { border-top: 1px solid #f3f4f6; }
+.user-list-name { font-weight: 500; color: #374151; font-size: 14px; }
+.user-list-email { color: #9ca3af; font-size: 12px; }
+.user-list-loading, .user-list-empty {
+  padding: 16px; text-align: center; color: #9ca3af; font-size: 13px;
+}
+.selected-recipient {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: 13px; color: #6b7280;
+}
+.selected-recipient strong { color: #374151; font-weight: 600; }
+.remove-recipient-btn {
+  background: none; border: none; cursor: pointer;
+  color: #9ca3af; font-size: 14px; padding: 0 2px;
+  transition: color 0.15s;
+}
+.remove-recipient-btn:hover { color: #ef4444; }
 .compose-btn {
   width: 32px;
   height: 32px;

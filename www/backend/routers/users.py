@@ -1,9 +1,10 @@
-"""
+﻿"""
 用户路由：个人信息、收藏列表、点赞列表
 """
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -20,6 +21,25 @@ router = APIRouter(prefix="/users", tags=["用户"])
 @router.get("/me", response_model=ApiResponse[UserOut])
 def me(current_user: User = Depends(get_current_user)):
     return ApiResponse.ok(data=UserOut.model_validate(current_user))
+
+
+@router.get("/search")
+def search_users(
+    keyword: str = Query(default='', min_length=0),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    '''搜索用户（需登录，非管理员可用）。keyword 为空时返回全部活跃用户。'''
+    q = db.query(User).filter(User.active == True)
+    if keyword:
+        q = q.filter(or_(
+            User.username.contains(keyword),
+            User.email.contains(keyword),
+        ))
+    users = q.limit(limit).all()
+    return ApiResponse.ok(data=[UserOut.model_validate(u) for u in users])
+
 
 
 @router.get("/{user_id}", response_model=ApiResponse[UserOut])

@@ -156,68 +156,34 @@
               </div>
               
               <!-- 人机验证按钮/注册按钮切换 -->
-              <div class="form-group slider-btn-group">
-                <button
-                  v-if="!sliderVerified"
-                  type="button"
-                  class="verify-human-btn"
-                  @click="showSliderModal = true"
-                  :disabled="isLoading"
-                >
-                  验证是否是人机
-                </button>
-                <button
-                  v-else
-                  type="submit"
-                  class="register-button"
-                  :disabled="isLoading || !canSubmit"
-                >
-                  <span v-if="isLoading" class="loading-spinner"></span>
-                  {{ isLoading ? '创建中...' : '注册' }}
-                </button>
-              </div>
+          <!-- 内联滑块验证 -->
+          <div v-if="!sliderVerified" class="form-group">
+            <SliderCaptcha 
+              ref="sliderCaptchaRef"
+              @success="handleSliderSuccess"
+              @reset="handleSliderReset"
+            />
+          </div>
 
-              <!-- 滑块弹窗 -->
-              <div v-if="showSliderModal" class="slider-modal-mask" :class="{ active: showSliderModal }" @click="handleMaskClick">
-                <div class="slider-modal">
-                  <div class="slider-modal-header">
-                    <div class="slider-modal-title">
-                      <span class="security-icon">🛡️</span>
-                      安全验证
-                    </div>
-                    <button class="slider-modal-close" @click="closeSliderModal">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div class="slider-modal-content">
-                    <div class="verification-instruction">
-                      <p v-if="!sliderVerified">请拖动滑块完成验证</p>
-                      <p v-else class="success-text">
-                        <span class="success-icon">✓</span>
-                        验证成功
-                      </p>
-                    </div>
-                    
-                    <!-- 使用新的滑块组件 -->
-                    <div class="new-slider-container">
-                      <SliderCaptcha 
-                        ref="sliderCaptchaRef"
-                        @success="handleSliderSuccess"
-                        @reset="handleSliderReset"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <!-- 注册按钮 -->
+          <div class="form-group slider-btn-group">
+            <button
+              v-if="sliderVerified"
+              type="submit"
+              class="register-button"
+              :disabled="isLoading"
+            >
+              <span v-if="isLoading" class="loading-spinner"></span>
+              {{ isLoading ? '创建中...' : '注册' }}
+            </button>
+          </div>
 
-              <!-- 底部链接 -->
-              <div class="form-footer">
-                <span class="login-prompt">已有账户？</span>
-                <a href="#" @click="$emit('switchToLogin')" class="login-link">登录</a>
-              </div>
+          <!-- 底部链接 -->
+          <div class="form-footer">
+            <span class="login-prompt">已有账户？</span>
+            <a href="#" @click="$emit('switchToLogin')" class="login-link">登录</a>
+          </div>
+
             </form>
           </div>
         </div>
@@ -360,63 +326,17 @@
   }
 
   // 新的滑块验证相关
+  // ── 滑块验证 ───────────────────────────────────────────────────
   const sliderVerified = ref(false)
-  const showSliderModal = ref(false)
   const sliderCaptchaRef = ref<InstanceType<typeof SliderCaptcha> | null>(null)
 
-  // 处理遮罩点击
-  const handleMaskClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      closeSliderModal()
-    }
-  }
-
-  // 滑块验证成功处理
   const handleSliderSuccess = () => {
     sliderVerified.value = true
-    console.log('滑块验证成功')
-    
-    // 延迟关闭弹窗
-    setTimeout(() => {
-      showSliderModal.value = false
-    }, 1500)
   }
 
-  // 滑块重置处理
   const handleSliderReset = () => {
-    console.log('滑块已重置')
-  }
-
-  // 关闭滑块弹窗
-  const closeSliderModal = () => {
-    showSliderModal.value = false
-    // 重置滑块状态
-    if (sliderCaptchaRef.value) {
-      sliderCaptchaRef.value.reset()
-    }
     sliderVerified.value = false
   }
-
-  // 监听弹窗显示状态，重置滑块
-  watch(showSliderModal, (val) => {
-    if (val) {
-      // 弹窗打开时重置滑块
-      setTimeout(() => {
-        if (sliderCaptchaRef.value) {
-          sliderCaptchaRef.value.reset()
-        }
-        sliderVerified.value = false
-      }, 100)
-    }
-  })
-
-  onMounted(() => {
-    // 移除旧的事件监听器，新滑块组件自己处理
-  })
-  
-  onBeforeUnmount(() => {
-    // 清理工作
-  })
   </script>
 
   <style scoped>
@@ -816,152 +736,6 @@
   }
 
   /* 滑块弹窗美化 */
-  .slider-modal-mask {
-    position: fixed;
-    left: 0; top: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.25);
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(12px) saturate(1.3);
-    -webkit-backdrop-filter: blur(12px) saturate(1.3);
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-  }
-
-  .slider-modal-mask.active {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  .slider-modal {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 24px;
-    width: 480px;
-    max-width: 90vw;
-    box-shadow: 
-      0 20px 60px 0 rgba(102, 126, 234, 0.15),
-      0 8px 32px 0 rgba(118, 75, 162, 0.1),
-      0 0 0 1px rgba(255, 255, 255, 0.8) inset;
-    position: relative;
-    animation: modalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    backdrop-filter: blur(20px) saturate(1.8);
-    -webkit-backdrop-filter: blur(20px) saturate(1.8);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    overflow: hidden;
-  }
-
-  @keyframes modalSlideIn {
-    from { 
-      opacity: 0; 
-      transform: scale(0.9) translateY(20px); 
-    }
-    to { 
-      opacity: 1; 
-      transform: scale(1) translateY(0); 
-    }
-  }
-
-  .slider-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 24px 32px 0;
-    border-bottom: 1px solid rgba(102, 126, 234, 0.08);
-    margin-bottom: 32px;
-  }
-
-  .slider-modal-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 20px;
-    font-weight: 700;
-    color: #2d3748;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.5px;
-  }
-
-  .security-icon {
-    font-size: 24px;
-    filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.2));
-  }
-
-  .slider-modal-close {
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: #6b7280;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .slider-modal-close:hover {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    transform: rotate(90deg);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
-  }
-
-  .slider-modal-content {
-    padding: 0 32px 32px;
-  }
-
-  .verification-instruction {
-    text-align: center;
-    margin-bottom: 24px;
-  }
-
-  .verification-instruction p {
-    font-size: 16px;
-    color: #4a5568;
-    margin: 0;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-  }
-
-  .success-text {
-    color: #10b981 !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 600 !important;
-  }
-
-  .success-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: bold;
-    animation: successPulse 0.6s ease-out;
-  }
-
-  @keyframes successPulse {
-    0% { transform: scale(0); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-  }
-
-
-
   @media (max-width: 768px) {
     .register-card {
       max-width: 420px;

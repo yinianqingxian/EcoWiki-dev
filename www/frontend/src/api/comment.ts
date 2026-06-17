@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 评论管理API模块
  * 
  * 功能：
@@ -35,6 +35,8 @@ export interface Comment {
   likes: number
   /** 当前用户是否已点赞 */
   isLiked: boolean
+  /** 作者头像URL */
+  authorAvatar?: string
   /** 回复列表 */
   replies?: Reply[]
   /** 父评论ID（如果是回复） */
@@ -65,6 +67,8 @@ export interface Reply {
   likes: number
   /** 当前用户是否已点赞 */
   isLiked: boolean
+  /** 作者头像URL */
+  authorAvatar?: string
   /** 用户头像URL */
   userAvatar?: string
   /** 用户ID */
