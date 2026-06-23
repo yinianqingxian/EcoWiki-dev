@@ -76,10 +76,9 @@ export interface PageResponse2<T> {
   content: T[]
   totalElements: number
   totalPages: number
-  number: number
+  page: number
   size: number
-  first: boolean
-  last: boolean
+  numberOfElements: number
 }
 
 // ─── 适配工具 ──────────────────────────────────────────────────────────────────
@@ -188,10 +187,9 @@ export class ReviewApiService {
       content: drafts.slice(start, start + size).map(draftToReview),
       totalElements: drafts.length,
       totalPages: Math.ceil(drafts.length / size) || 1,
-      number: page,
+      page,
       size,
-      first: page === 0,
-      last: start + size >= drafts.length,
+      numberOfElements: drafts.length,
     }
     return { code: 200, message: 'ok', data: paged }
   }
@@ -213,10 +211,9 @@ export class ReviewApiService {
       content: drafts.slice(start, start + size).map(draftToReview),
       totalElements: drafts.length,
       totalPages: Math.ceil(drafts.length / size) || 1,
-      number: page,
+      page,
       size,
-      first: page === 0,
-      last: start + size >= drafts.length,
+      numberOfElements: drafts.length,
     }
     return { code: 200, message: 'ok', data: paged }
   }
@@ -300,10 +297,9 @@ export class ReviewApiService {
         content: drafts.slice(start, start + size).map(draftToReview),
         totalElements: drafts.length,
         totalPages: Math.ceil(drafts.length / size) || 1,
-        number: page,
+        page,
         size,
-        first: page === 0,
-        last: start + size >= drafts.length,
+        numberOfElements: drafts.length,
       },
     }
   }

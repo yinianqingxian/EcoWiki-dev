@@ -258,6 +258,14 @@ def create_article(
     )
     db.add(draft)
 
+    # 将草稿加入审核队列
+    review_entry = ArticleReview(
+        draft_id=draft.draft_id,
+        submitter_id=current_user.user_id,
+        submitted_at=datetime.now(),
+    )
+    db.add(review_entry)
+
     db.commit()
     db.refresh(article)
 
@@ -291,6 +299,16 @@ def update_article(
         submitted_at=datetime.now(),
     )
     db.add(draft)
+    db.flush()
+
+    # 将草稿加入审核队列
+    review_entry = ArticleReview(
+        draft_id=draft.draft_id,
+        submitter_id=current_user.user_id,
+        submitted_at=datetime.now(),
+    )
+    db.add(review_entry)
+
     db.commit()
     db.refresh(article)
     return ApiResponse.ok(data=ArticleOut.model_validate(article), message="更新已提交审核，等待管理员审核")
@@ -304,6 +322,22 @@ def delete_article(
     db: Session = Depends(get_db),
 ):
     article = _get_article_or_404(article_id, db)
+
+    # 级联清理关联数据
+    db.query(UserArticleLike).filter(UserArticleLike.article_id == article_id).delete(synchronize_session=False)
+    db.query(UserArticleFavorite).filter(UserArticleFavorite.article_id == article_id).delete(synchronize_session=False)
+    db.query(ArticleVersion).filter(ArticleVersion.article_id == article_id).delete(synchronize_session=False)
+    drafts = db.query(ArticleDraft).filter(ArticleDraft.article_id == article_id).all()
+    for d in drafts:
+        db.query(ArticleReview).filter(ArticleReview.draft_id == d.draft_id).delete(synchronize_session=False)
+        db.delete(d)
+    db.execute(article_tags_table.delete().where(article_tags_table.c.article_id == article_id))
+    from models.comment import CommentLike
+    comments = db.query(Comment).filter(Comment.article_id == article_id).all()
+    for c in comments:
+        db.query(CommentLike).filter(CommentLike.comment_id == c.comment_id).delete(synchronize_session=False)
+        db.delete(c)
+
     db.delete(article)
     db.commit()
     return ApiResponse.ok(message="文章删除成功")

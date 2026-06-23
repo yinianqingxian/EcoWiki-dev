@@ -181,21 +181,15 @@ api.interceptors.response.use(
         // 处理队列中的请求（失败）
         processQueue(refreshError, null)
         
-        // 只有在确实是认证失败时才清除数据和刷新页面
-        if ((refreshError as any)?.message?.includes('No refresh token available') || 
-            (refreshError as any)?.response?.status === 401) {
-          
-          console.warn('清除认证数据并准备重新登录')
-          // 清除本地存储的认证信息
-          localStorage.removeItem('token')
-          localStorage.removeItem('refreshToken')
-          localStorage.removeItem('user')
-          
-          // 延迟刷新页面，给用户看到错误信息的机会
-          setTimeout(() => {
-            window.location.reload()
-          }, 100000)
-        }
+        // 清除认证数据并刷新页面
+        localStorage.removeItem('token')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        
+        // 延迟刷新页面，给用户看到错误信息的机会
+        setTimeout(() => {
+          window.location.reload()
+        }, 3000)
         
         return Promise.reject(refreshError)
       } finally {

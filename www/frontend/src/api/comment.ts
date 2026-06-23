@@ -116,11 +116,9 @@ export interface PageResponse<T> {
   content: T[]
   totalElements: number
   totalPages: number
-  number: number
+  page: number
   size: number
-  first: boolean
-  last: boolean
-  hasMore: boolean
+  numberOfElements: number
 }
 
 /**
@@ -164,7 +162,9 @@ function _normalizeComment(raw: any): Comment {
     likes:       raw.likes ?? 0,
     isLiked:     raw.likedByCurrent ?? raw.liked_by_current ?? raw.isLiked ?? false,
     parentId:    raw.parentId ?? raw.parent_id,
-    userAvatar:  raw.avatarUrl ?? raw.avatar_url ?? raw.userAvatar,
+    // 后端返回 author_avatar → interceptor 转为 authorAvatar
+    authorAvatar: raw.authorAvatar ?? raw.author_avatar ?? raw.userAvatar ?? '',
+    userAvatar:  raw.authorAvatar ?? raw.author_avatar ?? raw.userAvatar ?? raw.avatarUrl ?? '',
     userId:      raw.authorId ?? raw.author_id ?? raw.userId,
     replies:     (raw.replies ?? []).map(_normalizeComment),
   }

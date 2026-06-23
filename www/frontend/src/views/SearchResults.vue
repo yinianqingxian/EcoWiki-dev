@@ -117,8 +117,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { articleApi } from '../api/article'
-import type { PageResponse, Article } from '../types/article'
+import { articleApi, type PageResponse, type Article } from '../api/article'
 
 // 路由和状态管理
 const route = useRoute()

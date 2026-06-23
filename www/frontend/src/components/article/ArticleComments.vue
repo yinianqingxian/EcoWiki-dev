@@ -213,12 +213,8 @@ const loadComments = async () => {
     }
     
     const response = await commentApi.getComments(props.articleId, params)
-    // 为评论数据添加头像信息（临时测试用）
-    comments.value = response.content.map(comment => ({
-      ...comment,
-      userAvatar: comment.authorAvatar || '' // 如果没有头像URL，使用空字符串，这样会显示默认头像
-    }))
-    hasMore.value = !response.last
+    comments.value = response.content
+    hasMore.value = (response.page + 1) < response.totalPages
   } catch (error) {
     console.error('加载评论失败:', error)
     toast.show('加载评论失败，请稍后重试', '错误', { type: 'error' })
@@ -400,7 +396,7 @@ const loadMoreComments = async () => {
     
     const response = await commentApi.getComments(props.articleId, params)
     comments.value.push(...response.content)
-    hasMore.value = !response.last
+    hasMore.value = (response.page + 1) < response.totalPages
   } catch (error) {
     console.error('加载更多评论失败:', error)
     toast.show('加载失败，请稍后重试', '错误', { type: 'error' })

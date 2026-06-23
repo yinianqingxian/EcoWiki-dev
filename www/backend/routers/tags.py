@@ -47,7 +47,7 @@ def popular_tags(
     """获取最常用的标签（按关联文章数倒序）"""
     # 尝试按文章关联数排序，若表结构不支持则直接返回全部
     try:
-        from models.article import article_tag
+        from models.article import article_tags_table as article_tag
         popular = (
             db.query(Tag, func.count(article_tag.c.article_id).label("cnt"))
             .outerjoin(article_tag, Tag.tag_id == article_tag.c.tag_id)
@@ -151,7 +151,7 @@ def delete_unused_tags(
 ):
     """删除未使用的标签（暂时删除所有未关联文章的标签）"""
     try:
-        from models.article import article_tag
+        from models.article import article_tags_table as article_tag
         used_ids = db.query(article_tag.c.tag_id).distinct().subquery()
         count = db.query(Tag).filter(~Tag.tag_id.in_(used_ids)).delete(synchronize_session=False)
     except Exception:
@@ -169,7 +169,9 @@ def delete_tag(
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="标签不存在")
+    # 清理关联表
+    from models.article import article_tags_table
+    db.execute(article_tags_table.delete().where(article_tags_table.c.tag_id == tag_id))
     db.delete(tag)
     db.commit()
     return ApiResponse.ok(message="标签删除成功")
-

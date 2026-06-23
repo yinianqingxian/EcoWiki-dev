@@ -116,10 +116,9 @@ function wrapListAsPage<T>(list: T[], page: number, size: number): PageResponse<
     content: list.slice(start, start + size),
     totalElements: list.length,
     totalPages: Math.ceil(list.length / size) || 1,
-    number: page,
+    page,
     size,
-    first: page === 0,
-    last: start + size >= list.length,
+    numberOfElements: list.length,
   }
 }
 

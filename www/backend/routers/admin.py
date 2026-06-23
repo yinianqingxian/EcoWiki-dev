@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models.user import User, Role
+from models.user import User, Role, user_roles_table
 from models.article import Article
 from models.comment import Comment
 from schemas.user import UserOut
@@ -126,6 +126,58 @@ def delete_user(
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 级联清理用户关联数据
+    from models.article import Article, ArticleDraft, ArticleReview, ArticleVersion, UserArticleLike, UserArticleFavorite, article_tags_table
+    from models.comment import Comment, CommentLike
+    from models.message import Message
+
+    # 清理文章及其关联
+    articles = db.query(Article).filter(Article.author_id == user_id).all()
+    for article in articles:
+        db.query(UserArticleLike).filter(UserArticleLike.article_id == article.article_id).delete(synchronize_session=False)
+        db.query(UserArticleFavorite).filter(UserArticleFavorite.article_id == article.article_id).delete(synchronize_session=False)
+        db.query(ArticleVersion).filter(ArticleVersion.article_id == article.article_id).delete(synchronize_session=False)
+        drafts = db.query(ArticleDraft).filter(ArticleDraft.article_id == article.article_id).all()
+        for d in drafts:
+            db.query(ArticleReview).filter(ArticleReview.draft_id == d.draft_id).delete(synchronize_session=False)
+            db.delete(d)
+        db.execute(article_tags_table.delete().where(article_tags_table.c.article_id == article.article_id))
+        comments = db.query(Comment).filter(Comment.article_id == article.article_id).all()
+        for c in comments:
+            db.query(CommentLike).filter(CommentLike.comment_id == c.comment_id).delete(synchronize_session=False)
+            db.delete(c)
+        db.delete(article)
+
+    # 清理独立草稿（无关联文章的新文章草稿）
+    orphan_drafts = db.query(ArticleDraft).filter(ArticleDraft.author_id == user_id, ArticleDraft.article_id.is_(None)).all()
+    for d in orphan_drafts:
+        db.query(ArticleReview).filter(ArticleReview.draft_id == d.draft_id).delete(synchronize_session=False)
+        db.delete(d)
+
+    # 清理评论
+    user_comments = db.query(Comment).filter(Comment.author_id == user_id).all()
+    for c in user_comments:
+        db.query(CommentLike).filter(CommentLike.comment_id == c.comment_id).delete(synchronize_session=False)
+        db.delete(c)
+
+    # 清理评论点赞
+    db.query(CommentLike).filter(CommentLike.user_id == user_id).delete(synchronize_session=False)
+    # 清理文章点赞/收藏
+    db.query(UserArticleLike).filter(UserArticleLike.user_id == user_id).delete(synchronize_session=False)
+    db.query(UserArticleFavorite).filter(UserArticleFavorite.user_id == user_id).delete(synchronize_session=False)
+    # 清理消息
+    db.query(Message).filter(
+        (Message.sender_user_id == user_id) | (Message.recipient_user_id == user_id)
+    ).delete(synchronize_session=False)
+    # 清理版本（editor_id）
+    db.query(ArticleVersion).filter(ArticleVersion.editor_id == user_id).delete(synchronize_session=False)
+    # 清理审核队列记录（submitter_id）
+    db.query(ArticleReview).filter(ArticleReview.submitter_id == user_id).delete(synchronize_session=False)
+
+    # 清理用户角色关联
+    db.execute(user_roles_table.delete().where(user_roles_table.c.user_id == user_id))
+
     db.delete(user)
     db.commit()
     return ApiResponse.ok(message="用户删除成功")
@@ -302,9 +354,26 @@ def admin_delete_article(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    from models.article import ArticleDraft, ArticleReview, ArticleVersion, UserArticleLike, UserArticleFavorite, article_tags_table
+    from models.comment import Comment, CommentLike
     article = db.query(Article).filter(Article.article_id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+
+    # 级联清理关联数据
+    db.query(UserArticleLike).filter(UserArticleLike.article_id == article_id).delete(synchronize_session=False)
+    db.query(UserArticleFavorite).filter(UserArticleFavorite.article_id == article_id).delete(synchronize_session=False)
+    db.query(ArticleVersion).filter(ArticleVersion.article_id == article_id).delete(synchronize_session=False)
+    drafts = db.query(ArticleDraft).filter(ArticleDraft.article_id == article_id).all()
+    for d in drafts:
+        db.query(ArticleReview).filter(ArticleReview.draft_id == d.draft_id).delete(synchronize_session=False)
+        db.delete(d)
+    db.execute(article_tags_table.delete().where(article_tags_table.c.article_id == article_id))
+    comments = db.query(Comment).filter(Comment.article_id == article_id).all()
+    for c in comments:
+        db.query(CommentLike).filter(CommentLike.comment_id == c.comment_id).delete(synchronize_session=False)
+        db.delete(c)
+
     db.delete(article)
     db.commit()
     return ApiResponse.ok(message="文章删除成功")
@@ -315,6 +384,22 @@ def admin_delete_article(
 def list_roles(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     roles = db.query(Role).all()
     return ApiResponse.ok(data=[{"role_id": r.role_id, "role_name": r.role_name, "description": r.description} for r in roles])
+
+@router.get("/roles/details")
+def list_roles_details(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """返回角色详情（含关联用户数和权限数）"""
+    roles = db.query(Role).all()
+    result = []
+    for r in roles:
+        result.append({
+            "role_id": r.role_id,
+            "role_name": r.role_name,
+            "description": r.description,
+            "user_count": len(r.users),
+            "permission_count": len(r.permissions),
+            "permissions": [{"permission_id": p.permission_id, "permission_name": p.permission_name} for p in r.permissions],
+        })
+    return ApiResponse.ok(data=result)
 
 
 @router.post("/roles")
@@ -350,6 +435,10 @@ def delete_role(role_id: int, _: User = Depends(require_admin), db: Session = De
     role = db.query(Role).filter(Role.role_id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
+    # 清理 user_roles 和 role_permissions 关联
+    from models.user import user_roles_table as urt, role_permissions_table as rpt
+    db.execute(urt.delete().where(urt.c.role_id == role_id))
+    db.execute(rpt.delete().where(rpt.c.role_id == role_id))
     db.delete(role)
     db.commit()
     return ApiResponse.ok(message="角色删除成功")
@@ -425,10 +514,11 @@ def update_permission(permission_id: int, body: dict, _: User = Depends(require_
 
 @router.delete("/permissions/{permission_id}")
 def delete_permission(permission_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    from models.user import Permission
+    from models.user import Permission, role_permissions_table as rpt
     perm = db.query(Permission).filter(Permission.permission_id == permission_id).first()
     if not perm:
         raise HTTPException(status_code=404, detail="权限不存在")
+    db.execute(rpt.delete().where(rpt.c.permission_id == permission_id))
     db.delete(perm)
     db.commit()
     return ApiResponse.ok(message="权限删除成功")

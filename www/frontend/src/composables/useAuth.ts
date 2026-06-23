@@ -281,44 +281,34 @@ const refreshUserInfo = async () => {
     console.warn('用户未登录，无法刷新用户信息')
     return false
   }
-  
+
   try {
-    // 调用后端API获取最新用户信息
-    const response = await fetch('http://localhost:8080/api/auth/me', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token.value}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    
-    const result = await response.json()
-    
-    if (result.code === 200 && result.data) {
+    // 使用共享 api 实例（走 axios 拦截器，自动处理 key 转换和 token）
+    const { api } = await import('../api/index')
+    const response = await api.get('/api/auth/me')
+
+    if (response.data.code === 200 && response.data.data) {
+      const d = response.data.data  // 已被 interceptor 转为 camelCase
       // 更新用户信息
       user.value = {
-        userId: result.data.id,
-        username: result.data.username,
-        email: result.data.email,
-        fullName: result.data.fullName,
-        userGroup: result.data.userGroup,
-        active: result.data.active,
-        avatarUrl: result.data.avatarUrl ?? result.data.avatar_url ?? '',
-        createdAt: result.data.createdAt,
-        updatedAt: result.data.updatedAt
+        userId: d.userId ?? d.user_id,
+        username: d.username,
+        email: d.email,
+        fullName: d.fullName ?? d.full_name,
+        userGroup: d.userGroup ?? d.user_group,
+        active: d.active,
+        avatarUrl: d.avatarUrl ?? d.avatar_url ?? '',
+        createdAt: d.createdAt ?? d.created_at,
+        updatedAt: d.updatedAt ?? d.updated_at
       }
-      
+
       // 更新本地存储
       localStorage.setItem('user', JSON.stringify(user.value))
-      
+
       console.log('用户信息刷新成功:', user.value.username, user.value.avatarUrl)
       return true
     } else {
-      throw new Error(result.message || '获取用户信息失败')
+      throw new Error(response.data.message || '获取用户信息失败')
     }
   } catch (error) {
     console.error('刷新用户信息失败:', error)

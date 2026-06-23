@@ -89,8 +89,8 @@ def get_current_user(
 
 
 def require_admin(current_user=Depends(get_current_user)):
-    """要求管理员权限（roleId == 1）"""
-    if not current_user.role_id or current_user.role_id != 1:
+    """要求管理员权限（roleId in [1,4]，即 admin 或 superadmin）"""
+    if not current_user.role_id or current_user.role_id not in (1, 4):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="权限不足，需要管理员权限"
         )

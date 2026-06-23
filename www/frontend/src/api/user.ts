@@ -741,7 +741,7 @@ export const userApi = {
       const response = await api.get(`/api/auth/check-username?username=${encodeURIComponent(username)}`)
 
       if (response.data.code === 200 && response.data.data) {
-        return response.data.data.available
+        return !(response.data.data as any).exists
       }
 
       throw new Error(response.data.message || '检查用户名失败')
@@ -766,7 +766,7 @@ export const userApi = {
       const response = await api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`)
 
       if (response.data.code === 200 && response.data.data) {
-        return response.data.data.available
+        return !(response.data.data as any).exists
       }
 
       throw new Error(response.data.message || '检查邮箱失败')
@@ -1001,7 +1001,8 @@ export const userApi = {
     totalElements: number
     totalPages: number
     size: number
-    number: number
+    page: number
+    numberOfElements: number
   }> => {
     try {
   const response = await api.get('/api/users/me/favorites', {
@@ -1031,7 +1032,8 @@ export const userApi = {
     totalElements: number
     totalPages: number
     size: number
-    number: number
+    page: number
+    numberOfElements: number
   }> => {
     try {
       const params: any = { page, size }

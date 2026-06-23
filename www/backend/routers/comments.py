@@ -97,6 +97,8 @@ def create_comment(
     article = db.query(Article).filter(Article.article_id == body.article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
+    if article.status != "published":
+        raise HTTPException(status_code=400, detail="无法对未发布的文章发表评论")
 
     comment = Comment(
         article_id=body.article_id,

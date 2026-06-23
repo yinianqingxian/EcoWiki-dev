@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, model_validator
 from typing import Optional
 from datetime import datetime
 
-_ROLE_NAMES = {1: "admin", 2: "user", 3: "moderator"}
+_ROLE_NAMES = {1: "admin", 2: "user", 3: "moderator", 4: "superadmin"}
 
 
 class UserOut(BaseModel):

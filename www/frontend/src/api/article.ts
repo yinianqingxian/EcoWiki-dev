@@ -1,12 +1,12 @@
 /**
  * 文章相关API接口服务模块
- * 
+ *
  * 功能：
  * - 提供完整的文章管理功能接口
  * - 支持文章CRUD操作和检索功能
  * - 实现文章互动和统计分析功能
  * - 提供Wiki语法解析和处理接口
- * 
+ *
  * @author EcoWiki开发团队
  * @version 1.0.0
  * @since 2025-07-01
@@ -166,20 +166,13 @@ export interface ApiResponse<T> {
  * @template T 分页内容的数据类型
  */
 export interface PageResponse<T> {
-  /** 当前页数据内容 */
   content: T[]
-  /** 总元素数量 */
   totalElements: number
-  /** 总页数 */
   totalPages: number
-  /** 每页大小 */
+  /** 当前页码（0-based），对应后端 PageResult.page */
+  page: number
   size: number
-  /** 当前页码（从0开始） */
-  number: number
-  /** 是否为第一页 */
-  first: boolean
-  /** 是否为最后一页 */
-  last: boolean
+  numberOfElements: number
 }
 
 /**
@@ -319,50 +312,30 @@ export interface VersionHistoryResponse {
  * @class ArticleApi
  */
 class ArticleApi {
-  /**
-   * axios实例配置
-   * 设置了基础URL、请求头等通用配置
-   * 
-   * @private
-   * @type {axios.AxiosInstance}
-   */
-  private api = axios.create({
-    baseURL: BASE_URL,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-
   constructor() {
-    // 请求拦截器：添加 JWT token + camelCase→snake_case 转换
-    this.api.interceptors.request.use(
-      (config) => {
-        const token = localStorage.getItem('token')
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`
-        }
-        if (config.data && !(config.data instanceof FormData) && !(config.data instanceof Blob)) {
-          config.data = _transformKeys(config.data, _toSnake)
-        }
-        if (config.params) {
-          config.params = _transformKeys(config.params, _toSnake)
-        }
-        return config
-      },
-      (error) => Promise.reject(error)
-    )
-    // 响应拦截器：snake_case→camelCase 转换 + tags数组→字符串转换
-    this.api.interceptors.response.use(
-      (response) => {
-        if (response.data) response.data = _transformKeys(response.data, _toCamel)
-        // 将文章数据中的 tags 数组（[{tagId,tagName,color}]）转换为逗号分隔的字符串
-        if (response.data?.data) {
-          _normalizeTags(response.data.data)
-        }
-        return response
-      },
-      (error) => Promise.reject(error)
-    )
+    // api 实例延迟初始化，避免循环依赖
+    this._api = null
+    this._apiReady = false
+  }
+
+  private _api: any
+  private _apiReady: boolean
+
+  private async _ensureApi(): Promise<any> {
+    if (!this._api) {
+      const mod = await import('./index')
+      this._api = mod.api
+      this._api.interceptors.response.use(
+        (response: any) => {
+          if (response.data?.data) {
+            _normalizeTags(response.data.data)
+          }
+          return response
+        },
+        (error: any) => Promise.reject(error)
+      )
+    }
+    return this._api
   }
 
   /**
@@ -387,7 +360,7 @@ class ArticleApi {
    * ```
    */
   async createArticle(article: ArticleCreateRequest): Promise<Article> {
-    const response = await this.api.post<ApiResponse<Article>>('/articles', article)
+    const response = await (await this._ensureApi()).post<ApiResponse<Article>>('/api/articles', article)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -413,7 +386,7 @@ class ArticleApi {
    * ```
    */
   async checkTitleExists(title: string): Promise<boolean> {
-    const response = await this.api.get<ApiResponse<{exists: boolean}>>('/articles/check-title', {
+    const response = await (await this._ensureApi()).get<ApiResponse<{exists: boolean}>>('/api/articles/check-title', {
       params: { title }
     })
     if (response.data.code !== 200) {
@@ -453,7 +426,7 @@ class ArticleApi {
       'views-desc': 'views', 'likes-desc': 'likes',
     }
     const sort = sortMap[`${sortBy}-${sortDir}`] ?? 'newest'
-    const response = await this.api.get<ApiResponse<PageResponse<Article>>>('/articles', {
+    const response = await (await this._ensureApi()).get<ApiResponse<PageResponse<Article>>>('/api/articles', {
       params: { page, size, sort }
     })
     if (response.data.code !== 200) {
@@ -478,7 +451,7 @@ class ArticleApi {
    * ```
    */
   async getArticleById(id: number): Promise<Article> {
-    const response = await this.api.get<ApiResponse<Article>>(`/articles/${id}`)
+    const response = await (await this._ensureApi()).get<ApiResponse<Article>>(`/api/articles/${id}`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -507,7 +480,7 @@ class ArticleApi {
    * ```
    */
   async updateArticle(id: number, article: ArticleUpdateRequest): Promise<Article> {
-    const response = await this.api.put<ApiResponse<Article>>(`/articles/${id}`, article)
+    const response = await (await this._ensureApi()).put<ApiResponse<Article>>(`/api/articles/${id}`, article)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -530,7 +503,7 @@ class ArticleApi {
    * ```
    */
   async deleteArticle(id: number): Promise<void> {
-    const response = await this.api.delete<ApiResponse<void>>(`/articles/${id}`)
+    const response = await (await this._ensureApi()).delete<ApiResponse<void>>(`/api/articles/${id}`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -554,7 +527,7 @@ class ArticleApi {
    * ```
    */
   async searchArticles(keyword: string, page = 0, size = 10): Promise<PageResponse<Article>> {
-    const response = await this.api.get<ApiResponse<PageResponse<Article>>>('/articles/search', {
+    const response = await (await this._ensureApi()).get<ApiResponse<PageResponse<Article>>>('/api/articles/search', {
       params: { keyword, page, size }
     })
     if (response.data.code !== 200) {
@@ -581,7 +554,7 @@ class ArticleApi {
    * ```
    */
   async getArticlesByCategory(category: string, page = 0, size = 10): Promise<PageResponse<Article>> {
-    const response = await this.api.get<ApiResponse<PageResponse<Article>>>('/articles', {
+    const response = await (await this._ensureApi()).get<ApiResponse<PageResponse<Article>>>('/api/articles', {
       params: { page, size, category }
     })
     if (response.data.code !== 200) {
@@ -606,7 +579,7 @@ class ArticleApi {
    * ```
    */
   async getArticlesByAuthor(author: string): Promise<Article[]> {
-    const response = await this.api.get<ApiResponse<PageResponse<Article>>>('/articles', {
+    const response = await (await this._ensureApi()).get<ApiResponse<PageResponse<Article>>>('/api/articles', {
       params: { author, size: 100 }
     })
     if (response.data.code !== 200) {
@@ -633,7 +606,7 @@ class ArticleApi {
    * ```
    */
   async getArticlesByTag(tag: string, page = 0, size = 10): Promise<PageResponse<Article>> {
-    const response = await this.api.get<ApiResponse<PageResponse<Article>>>('/articles', {
+    const response = await (await this._ensureApi()).get<ApiResponse<PageResponse<Article>>>('/api/articles', {
       params: { page, size, tags: tag }
     })
     if (response.data.code !== 200) {
@@ -658,7 +631,7 @@ class ArticleApi {
    * ```
    */
   async getPopularArticles(limit = 10): Promise<Article[]> {
-    const response = await this.api.get<ApiResponse<Article[]>>('/articles/popular', {
+    const response = await (await this._ensureApi()).get<ApiResponse<Article[]>>('/api/articles/popular', {
       params: { limit }
     })
     if (response.data.code !== 200) {
@@ -683,7 +656,7 @@ class ArticleApi {
    * ```
    */
   async getLatestArticles(limit = 10): Promise<Article[]> {
-    const response = await this.api.get<ApiResponse<Article[]>>('/articles/latest', {
+    const response = await (await this._ensureApi()).get<ApiResponse<Article[]>>('/api/articles/latest', {
       params: { limit }
     })
     if (response.data.code !== 200) {
@@ -708,7 +681,7 @@ class ArticleApi {
    * ```
    */
   async likeArticle(id: number): Promise<void> {
-    const response = await this.api.post<ApiResponse<void>>(`/articles/${id}/like`)
+    const response = await (await this._ensureApi()).post<ApiResponse<void>>(`/api/articles/${id}/like`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -731,7 +704,7 @@ class ArticleApi {
    */
   async unlikeArticle(id: number): Promise<void> {
     // 后端点赞是 toggle：再次 POST 即取消点赞
-    const response = await this.api.post<ApiResponse<void>>(`/articles/${id}/like`)
+    const response = await (await this._ensureApi()).post<ApiResponse<void>>(`/api/articles/${id}/like`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -753,7 +726,7 @@ class ArticleApi {
    * ```
    */
   async favoriteArticle(id: number): Promise<void> {
-    const response = await this.api.post<ApiResponse<void>>(`/articles/${id}/favorite`)
+    const response = await (await this._ensureApi()).post<ApiResponse<void>>(`/api/articles/${id}/favorite`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -776,7 +749,7 @@ class ArticleApi {
    */
   async unfavoriteArticle(id: number): Promise<void> {
     // 后端收藏是 toggle：再次 POST 即取消收藏
-    const response = await this.api.post<ApiResponse<void>>(`/articles/${id}/favorite`)
+    const response = await (await this._ensureApi()).post<ApiResponse<void>>(`/api/articles/${id}/favorite`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -793,7 +766,7 @@ class ArticleApi {
    * @throws {Error} 当检查失败时抛出错误信息
    */
   async checkLikeStatus(id: number): Promise<boolean> {
-    const response = await this.api.get<ApiResponse<{ liked: boolean }>>(`/articles/${id}/like-status`)
+    const response = await (await this._ensureApi()).get<ApiResponse<{ liked: boolean }>>(`/api/articles/${id}/like-status`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -811,7 +784,7 @@ class ArticleApi {
    * @throws {Error} 当检查失败时抛出错误信息
    */
   async checkFavoriteStatus(id: number): Promise<boolean> {
-    const response = await this.api.get<ApiResponse<{ favorited: boolean }>>(`/articles/${id}/favorite-status`)
+    const response = await (await this._ensureApi()).get<ApiResponse<{ favorited: boolean }>>(`/api/articles/${id}/favorite-status`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -834,7 +807,7 @@ class ArticleApi {
    * ```
    */
   async getStatistics(): Promise<ArticleStatistics> {
-    const response = await this.api.get<ApiResponse<ArticleStatistics>>('/articles/statistics')
+    const response = await (await this._ensureApi()).get<ApiResponse<ArticleStatistics>>('/api/articles/statistics')
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -858,7 +831,7 @@ class ArticleApi {
    * ```
    */
   async publishArticle(id: number): Promise<Article> {
-    const response = await this.api.put<ApiResponse<Article>>(`/articles/${id}/publish`)
+    const response = await (await this._ensureApi()).put<ApiResponse<Article>>(`/api/articles/${id}/publish`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -869,7 +842,7 @@ class ArticleApi {
    * 切换文章状态（通用更新状态接口）
    */
   async setArticleStatus(id: number, status: string): Promise<Article> {
-    const response = await this.api.put<ApiResponse<Article>>(`/articles/${id}`, { status })
+    const response = await (await this._ensureApi()).put<ApiResponse<Article>>(`/api/articles/${id}`, { status })
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -893,7 +866,7 @@ class ArticleApi {
    * ```
    */
   async parseWikiText(wikiText: string): Promise<string> {
-    const response = await this.api.post<ApiResponse<string>>('/articles/parse', {
+    const response = await (await this._ensureApi()).post<ApiResponse<string>>('/api/articles/parse', {
       content: wikiText
     })
     if (response.data.code !== 200) {
@@ -917,7 +890,7 @@ class ArticleApi {
    * ```
    */
   async getArticleIdByTitle(title: string): Promise<number> {
-    const response = await this.api.get<ApiResponse<number>>(`/articles/title/${encodeURIComponent(title)}/id`)
+    const response = await (await this._ensureApi()).get<ApiResponse<number>>(`/api/articles/title/${encodeURIComponent(title)}/id`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -940,13 +913,13 @@ class ArticleApi {
   }>> {
     try {
       // 直接调用后端的贡献者API
-      const response = await this.api.get<ApiResponse<Array<{
+      const response = await (await this._ensureApi()).get<ApiResponse<Array<{
         username: string
         displayName: string
         avatarUrl: string
         editCount: number
         latestEdit: string
-      }>>>(`/articles/${articleId}/contributors`)
+      }>>>(`/api/articles/${articleId}/contributors`)
       
       if (response.data.code !== 200) {
         throw new Error(response.data.message)
@@ -1032,7 +1005,7 @@ class ArticleApi {
    * @returns {Promise<VersionHistoryResponse>} 版本历史数据
    */
   async getArticleVersions(articleId: number, page = 0, size = 20): Promise<VersionHistoryResponse> {
-    const response = await this.api.get<ApiResponse<any>>(`/articles/${articleId}/versions`)
+    const response = await (await this._ensureApi()).get<ApiResponse<any>>(`/api/articles/${articleId}/versions`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -1056,7 +1029,7 @@ class ArticleApi {
    * @returns {Promise<VersionContentResponse>} 版本内容
    */
   async getVersionContent(articleId: number, versionNumber: number): Promise<VersionContentResponse> {
-    const response = await this.api.get<ApiResponse<any>>(`/articles/${articleId}/versions/${versionNumber}`)
+    const response = await (await this._ensureApi()).get<ApiResponse<any>>(`/api/articles/${articleId}/versions/${versionNumber}`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -1071,7 +1044,7 @@ class ArticleApi {
    * @returns {Promise<VersionContentResponse>} 最新版本内容
    */
   async getLatestVersionContent(articleId: number): Promise<VersionContentResponse> {
-    const response = await this.api.get<ApiResponse<any>>(`/articles/${articleId}/versions/latest`)
+    const response = await (await this._ensureApi()).get<ApiResponse<any>>(`/api/articles/${articleId}/versions/latest`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -1087,7 +1060,7 @@ class ArticleApi {
    * @returns {Promise<ArticleVersion>} 新创建的版本
    */
   async createVersion(articleId: number, request: CreateVersionRequest): Promise<ArticleVersion> {
-    const response = await this.api.post<ApiResponse<ArticleVersion>>(`/articles/${articleId}/versions`, request)
+    const response = await (await this._ensureApi()).post<ApiResponse<ArticleVersion>>(`/api/articles/${articleId}/versions`, request)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -1101,7 +1074,7 @@ class ArticleApi {
    * @returns {Promise<ArticleVersionStats>} 版本统计信息
    */
   async getVersionStats(articleId: number): Promise<ArticleVersionStats> {
-    const response = await this.api.get<ApiResponse<ArticleVersionStats>>(`/articles/${articleId}/versions/stats`)
+    const response = await (await this._ensureApi()).get<ApiResponse<ArticleVersionStats>>(`/api/articles/${articleId}/versions/stats`)
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
@@ -1117,7 +1090,7 @@ class ArticleApi {
    * @returns {Promise<ArticleVersion>} 恢复后创建的新版本
    */
   async restoreToVersion(articleId: number, versionNumber: number, author: string): Promise<ArticleVersion> {
-    const response = await this.api.post<ApiResponse<ArticleVersion>>(`/articles/${articleId}/versions/${versionNumber}/restore`, {})
+    const response = await (await this._ensureApi()).post<ApiResponse<ArticleVersion>>(`/api/articles/${articleId}/versions/${versionNumber}/restore`, {})
     if (response.data.code !== 200) {
       throw new Error(response.data.message)
     }
